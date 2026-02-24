@@ -1,0 +1,74 @@
+name: Rancher Token Renewal
+
+on:
+  workflow_dispatch:
+    inputs:
+      token_ttl:
+        description: 'Token TTL in hours'
+        required: false
+        type: number
+        default: 24
+  schedule:
+    # Run daily at midnight UTC
+    - cron: '0 0 * * *'
+
+jobs:
+  renew-token:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: Configure Terraform variables
+        env:
+          RANCHER_URL: ${{ secrets.RANCHER_URL }}
+          RANCHER_TOKEN: ${{ secrets.RANCHER_TOKEN }}
+          TOKEN_TTL_HOURS: ${{ github.event.inputs.token_ttl || 24 }}
+        run: |
+          # Convert hours to milliseconds
+          TOKEN_TTL_MS=$((TOKEN_TTL_HOURS * 60 * 60 * 1000))
+
+          cat > terraform.tfvars << EOF
+          rancher_url   = "$RANCHER_URL"
+          rancher_token = "$RANCHER_TOKEN"
+          token_ttl     = $TOKEN_TTL_MS
+          token_name    = "github-actions-token"
+          insecure      = false
+          EOF
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: sre-ranchertoken-update
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color
+        working-directory: sre-ranchertoken-update
+        continue-on-error: true
+
+      - name: Terraform Apply
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+        run: terraform apply -auto-approve
+        working-directory: sre-ranchertoken-update
+
+      - name: Extract Token (on first run only)
+        if: steps.plan.outcome == 'success'
+        id: extract-token
+        run: |
+          if [ -f "terraform.tfstate" ]; then
+            echo "Token renewal completed successfully"
+            echo "Token ID: $(terraform output -raw token_id 2>/dev/null || echo 'N/A')"
+          fi
+        working-directory: sre-ranchertoken-update
+
+      - name: Cleanup terraform files
+        if: always()
+        run: |
+          rm -f terraform.tfvars
+          rm -f .terraform.lock.hcl
+        working-directory: sre-ranchertoken-update
