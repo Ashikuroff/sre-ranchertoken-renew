@@ -43,32 +43,25 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
-        working-directory: sre-ranchertoken-update
 
       - name: Terraform Plan
         id: plan
         run: terraform plan -no-color
-        working-directory: sre-ranchertoken-update
         continue-on-error: true
 
       - name: Terraform Apply
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         run: terraform apply -auto-approve
-        working-directory: sre-ranchertoken-update
 
-      - name: Extract Token (on first run only)
+      - name: Extract Token
         if: steps.plan.outcome == 'success'
         id: extract-token
         run: |
-          if [ -f "terraform.tfstate" ]; then
-            echo "Token renewal completed successfully"
-            echo "Token ID: $(terraform output -raw token_id 2>/dev/null || echo 'N/A')"
-          fi
-        working-directory: sre-ranchertoken-update
+          echo "Token renewal completed successfully"
+          echo "Token ID: $(terraform output -raw token_id 2>/dev/null || echo 'N/A')"
 
       - name: Cleanup terraform files
         if: always()
         run: |
           rm -f terraform.tfvars
           rm -f .terraform.lock.hcl
-        working-directory: sre-ranchertoken-update
