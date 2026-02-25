@@ -1,37 +1,23 @@
 # CLAUDE.md - Project Instructions
 
-This file provides guidance for working on the SRE Rancher Token Renew project.
+This file provides guidance for working on the SRE Rancher Token Renewal project.
 
 ## Project Overview
 
-This project automates the rotation of Rancher API tokens and updates them in GitHub repository secrets. It consists of:
-
-- **rotate_token.py** - Main Python script for token rotation
-- **requirements.txt** - Python dependencies
-- **.github/workflows/rotate-token.yml** - GitHub Actions workflow for automated execution
+This project automates the renewal of Rancher API tokens using Terraform and GitHub Actions.
 
 ## Codebase Summary
 
-### Core Components
-
 | File | Purpose |
 |------|---------|
-| `rotate_token.py` | Main script - handles Rancher token creation and GitHub secret updates |
-| `requirements.txt` | Dependencies: requests, PyGithub, PyNaCl |
-| `.github/workflows/rotate-token.yml` | Weekly scheduled GitHub Actions workflow |
-
-### Key Classes/Functions
-
-- `RancherTokenRotator` class in `rotate_token.py`:
-  - `validate_env()` - Validates required environment variables
-  - `encrypt_secret()` - Encrypts token using GitHub public key
-  - `get_rancher_token()` - Creates new Rancher API token
-  - `update_github_secret()` - Updates GitHub repository secret
-  - `run()` - Main execution flow
+| `main.tf` | Terraform main configuration - creates/renews Rancher token |
+| `variables.tf` | Terraform variable definitions |
+| `providers.tf` | Terraform provider configuration |
+| `.github/workflows/rancher-token-renewal.yml` | GitHub Actions workflow for automated execution |
 
 ## How to Plan Tasks
 
-1. **Understand the goal** - Read the relevant code files first
+1. **Understand the goal** - Read the relevant Terraform files first
 2. **Identify affected files** - Determine what needs to change
 3. **Consider dependencies** - Check how changes might impact other parts
 4. **Test strategy** - Plan how to verify the changes work
@@ -43,42 +29,36 @@ For non-trivial tasks, use `EnterPlanMode` to explore the codebase and design an
 
 ### Local Testing
 
-1. **Install dependencies**:
+1. Install Terraform:
    ```bash
-   pip install -r requirements.txt
+   brew install terraform  # macOS
+   # or apt-get install terraform  # Linux
    ```
 
-2. **Set required environment variables**:
+2. Set environment variables:
    ```bash
    export RANCHER_URL="https://rancher.example.com"
-   export RANCHER_ACCESS_KEY="your_access_key"
-   export RANCHER_SECRET_KEY="your_secret_key"
-   export GH_TOKEN="your_github_pat"
-   export GITHUB_REPOSITORY="owner/repo"
+   export RANCHER_TOKEN="your_admin_token"
+   export RANCHER_TOKEN_NAME="my-token"
    ```
 
-3. **Run the script**:
+3. Initialize and apply Terraform:
    ```bash
-   python rotate_token.py
+   terraform init
+   terraform plan
+   terraform apply
    ```
-
-### Dry Run / Debug Mode
-
-The script currently doesn't have a dry-run mode. For testing:
-- Use a test Rancher instance
-- Use a test GitHub repository
-- Verify secrets are updated correctly before using in production
 
 ### GitHub Actions Testing
 
 1. Use `workflow_dispatch` to trigger manually:
    - Go to Actions tab in GitHub
-   - Select "Rotate Rancher Token"
+   - Select "Rancher Token Renewal"
    - Click "Run workflow"
 
 2. Check workflow logs for:
-   - Token generation success
-   - Secret update confirmation
+   - Terraform initialization success
+   - Token creation/update confirmation
    - Any error messages
 
 ## How to Execute
@@ -86,87 +66,66 @@ The script currently doesn't have a dry-run mode. For testing:
 ### Local Execution
 
 ```bash
-# Install dependencies (first time only)
-pip install -r requirements.txt
+# Initialize Terraform
+terraform init
 
-# Set environment variables
-export RANCHER_URL="https://rancher.example.com"
-export RANCHER_ACCESS_KEY="your_access_key"
-export RANCHER_SECRET_KEY="your_secret_key"
-export GH_TOKEN="your_github_pat"
-export GITHUB_REPOSITORY="owner/repo"
+# Preview changes
+terraform plan
 
-# Run the script
-python rotate_token.py
+# Apply changes
+terraform apply
 ```
 
 ### GitHub Actions Execution
 
 The workflow runs automatically:
-- **Schedule**: Weekly on Monday at 00:00 UTC
+- **Schedule**: Daily at midnight UTC (configurable in workflow)
 - **Manual**: Use `workflow_dispatch` trigger
 
-### Environment Variables Reference
+## Environment Variables Reference
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `RANCHER_URL` | Yes | - | Rancher instance URL |
-| `RANCHER_ACCESS_KEY` | Yes | - | Rancher API access key |
-| `RANCHER_SECRET_KEY` | Yes | - | Rancher API secret key |
-| `GH_TOKEN` | Yes | - | GitHub PAT with repo permissions |
-| `GITHUB_REPOSITORY` | Yes | - | Target repo (owner/repo) |
-| `RANCHER_BEARER_TOKEN` | No | `RANCHER_BEARER_TOKEN` | Secret name to update |
-| `RANCHER_TOKEN_TTL` | No | `0` | Token TTL in milliseconds |
+| `RANCHER_TOKEN` | Yes | - | Rancher API token with admin privileges |
+| `RANCHER_TOKEN_NAME` | Yes | - | Name for the token resource |
+| `token_description` | No | "Managed by Terraform" | Token description |
+| `token_ttl` | No | 86400000 | Token TTL in milliseconds (24 hours) |
 
 ## Common Operations
 
-### Adding a New Feature
-
-1. Edit `rotate_token.py` - Add method to `RancherTokenRotator` class
-2. Update `run()` method to integrate the new feature
-3. Test locally with test credentials
-4. Update README.md if needed
-
 ### Modifying the GitHub Workflow
 
-Edit `.github/workflows/rotate-token.yml`:
+Edit `.github/workflows/rancher-token-renewal.yml`:
 - Change schedule with cron syntax
-- Add new secrets to the `env` section
-- Modify Python version if needed
+- Add new variables to the `env` section
+- Modify Terraform version if needed
 
-### Updating Dependencies
+### Updating Terraform Configuration
 
-Edit `requirements.txt` and test:
-```bash
-pip install -r requirements.txt
-python rotate_token.py
-```
+Edit `main.tf`, `variables.tf`, or `providers.tf`:
+- Test locally first with `terraform plan`
+- Verify changes work as expected
+- Commit and push to trigger workflow
 
 ## Important Considerations
 
 1. **Security**:
-   - Never commit actual credentials
+   - Never commit actual tokens
    - Use GitHub Secrets for all sensitive values
-   - The GH_TOKEN needs `repo` scope for secret management
+   - Store Terraform state remotely (S3, GCS) with encryption
 
-2. **Idempotency**:
-   - Each run creates a new token but doesn't revoke old ones
-   - Consider adding token cleanup logic for production use
+2. **Token TTL**:
+   - Default is 86400000 ms (24 hours)
+   - Adjust based on your security requirements
 
 3. **Error Handling**:
-   - Script exits with code 1 on - Check logs any failure
-   for detailed error messages
-
-4. **Token TTL**:
-   - Default is 0 (never expires)
-   - Set `RANCHER_TOKEN_TTL` in milliseconds (e.g., 86400000 = 24 hours)
+   - Check GitHub Actions logs for detailed error messages
+   - Terraform will show errors in the workflow run
 
 ## Quick Reference
 
 ```bash
 # Full local run
-pip install -r requirements.txt && \
-export RANCHER_URL="..." RANCHER_ACCESS_KEY="..." \
-RANCHER_SECRET_KEY="..." GH_TOKEN="..." GITHUB_REPOSITORY="..." && \
-python rotate_token.py
+terraform init && terraform plan && terraform apply
 ```
