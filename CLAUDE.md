@@ -114,6 +114,13 @@ Edit `main.tf`, `variables.tf`, or `providers.tf`:
    - Never commit actual tokens
    - Use GitHub Secrets for all sensitive values
    - Store Terraform state remotely (S3, GCS) with encryption
+   - Add these to `.gitignore`:
+     ```
+     *.tfstate
+     *.tfstate.*
+     .terraform/
+     .terraform.lock.hcl
+     ```
 
 2. **Token TTL**:
    - Default is 86400000 ms (24 hours)
@@ -123,9 +130,31 @@ Edit `main.tf`, `variables.tf`, or `providers.tf`:
    - Check GitHub Actions logs for detailed error messages
    - Terraform will show errors in the workflow run
 
+4. **Claude Code Permissions**:
+   Required permissions in `.claude/settings.local.json`:
+   - `Bash(terraform:*)` - For running Terraform commands
+   - `Bash(git commit:*)` - For committing changes
+   - `WebSearch` - For searching documentation
+
 ## Quick Reference
 
 ```bash
+# Initialize Terraform
+terraform init
+
+# Check syntax and validate
+terraform validate
+terraform fmt
+
+# Preview changes
+terraform plan
+
+# Apply changes
+terraform apply
+
+# Destroy resources (use with caution!)
+terraform destroy
+
 # Full local run
 terraform init && terraform plan && terraform apply
 ```
